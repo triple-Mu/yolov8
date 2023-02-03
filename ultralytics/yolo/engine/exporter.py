@@ -60,8 +60,8 @@ from pathlib import Path
 import torch
 
 from ultralytics.nn.autobackend import check_class_names
-from ultralytics.nn.modules import C2f, Detect, RTDETRDecoder
-from ultralytics.nn.tasks import DetectionModel, SegmentationModel
+from ultralytics.nn.modules import C2f, Detect, Pose, Segment, X3Detect, X3Pose, X3Segment, RTDETRDecoder
+from ultralytics.nn.tasks import DetectionModel, PoseModel, SegmentationModel
 from ultralytics.yolo.cfg import get_cfg
 from ultralytics.yolo.utils import (ARM64, DEFAULT_CFG, LINUX, LOGGER, MACOS, ROOT, __version__, callbacks, colorstr,
                                     get_default_args, yaml_save)
@@ -187,10 +187,11 @@ class Exporter:
         model.float()
         model = model.fuse()
         for k, m in model.named_modules():
-            if isinstance(m, (Detect, RTDETRDecoder)):  # Segment and Pose use Detect base class
+            if isinstance(m, (Detect, Pose, X3Detect, X3Segment, X3Pose, RTDETRDecoder)):  # Segment and Pose use Detect base class
                 m.dynamic = self.args.dynamic
                 m.export = True
                 m.format = self.args.format
+                m.x3pi = getattr(self.args, 'x3pi')
             elif isinstance(m, C2f) and not any((saved_model, pb, tflite, edgetpu, tfjs)):
                 # EdgeTPU does not support FlexSplitV while split provides cleaner ONNX graph
                 m.forward = m.forward_split
@@ -312,10 +313,30 @@ class Exporter:
         if dynamic:
             dynamic = {'images': {0: 'batch', 2: 'height', 3: 'width'}}  # shape(1,3,640,640)
             if isinstance(self.model, SegmentationModel):
-                dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
+                dynamic['output0'] = {0: 'batch', 2: 'anchors'}  # shape(1,25200,85)
                 dynamic['output1'] = {0: 'batch', 2: 'mask_height', 3: 'mask_width'}  # shape(1,32,160,160)
             elif isinstance(self.model, DetectionModel):
-                dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
+                dynamic['output0'] = {0: 'batch', 2: 'anchors'}  # shape(1,25200,85)
+
+        if getattr(self.args, 'x3pi'):
+            output_names = ['lscore', 'lbox', 'mscore', 'mbox', 'sscore', 'sbox']
+            if isinstance(self.model, SegmentationModel):
+                output_names = [
+                    'lscore', 'lbox', 'lmcoef', 'mscore', 'mbox', 'mmcoef', 'sscore', 'sbox', 'smcoef', 'proto']
+            elif isinstance(self.model, PoseModel):
+                output_names = ['lscore', 'lbox', 'lkps', 'mscore', 'mbox', 'mkps', 'sscore', 'sbox', 'skps']
+            if dynamic:
+                dynamic = {
+                    'images': {
+                        0: 'batch',
+                        2: 'height',
+                        3: 'width'},
+                    **{
+                        name: {
+                            0: 'batch',
+                            1: name,
+                            2: name}
+                        for name in output_names}}
 
         torch.onnx.export(
             self.model.cpu() if dynamic else self.model,  # --dynamic only compatible with cpu

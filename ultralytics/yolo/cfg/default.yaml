@@ -115,3 +115,6 @@ v5loader: False  # (bool) use legacy YOLOv5 dataloader (deprecated)
 
 # Tracker settings ------------------------------------------------------------------------------------------------------
 tracker: botsort.yaml  # (str) tracker type, choices=[botsort.yaml, bytetrack.yaml]
+
+# Horizon ONNX export
+x3pi: False

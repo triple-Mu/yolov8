@@ -26,6 +26,7 @@ class Detect(nn.Module):
     shape = None
     anchors = torch.empty(0)  # init
     strides = torch.empty(0)  # init
+    x3pi = False
 
     def __init__(self, nc=80, ch=()):  # detection layer
         super().__init__()
@@ -42,6 +43,10 @@ class Detect(nn.Module):
 
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
+
+        if self.x3pi:
+            return self.forward_det_x3pi(x)
+
         shape = x[0].shape  # BCHW
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
@@ -60,6 +65,15 @@ class Detect(nn.Module):
         dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
         y = torch.cat((dbox, cls.sigmoid()), 1)
         return y if self.export else (y, x)
+
+    def forward_det_x3pi(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            results.append(cls)
+            results.append(dfl)
+        return tuple(results)
 
     def bias_init(self):
         """Initialize Detect() biases, WARNING: requires stride availability."""
@@ -88,6 +102,12 @@ class Segment(Detect):
     def forward(self, x):
         """Return model outputs and mask coefficients if training, otherwise return outputs and mask coefficients."""
         p = self.proto(x[0])  # mask protos
+
+        if self.x3pi:
+            results = self.forward_seg_x3pi(x)
+            results.append(p)
+            return tuple(results)
+
         bs = p.shape[0]  # batch size
 
         mc = torch.cat([self.cv4[i](x[i]).view(bs, self.nm, -1) for i in range(self.nl)], 2)  # mask coefficients
@@ -95,6 +115,15 @@ class Segment(Detect):
         if self.training:
             return x, mc, p
         return (torch.cat([x, mc], 1), p) if self.export else (torch.cat([x[0], mc], 1), (x[1], mc, p))
+
+    def forward_seg_x3pi(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            mcoef = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            results.append(torch.cat([cls, dfl, mcoef], -1))
+        return results
 
 
 class Pose(Detect):
@@ -112,6 +141,11 @@ class Pose(Detect):
 
     def forward(self, x):
         """Perform forward pass through YOLO model and return predictions."""
+
+        if self.x3pi:
+            results = self.forward_pose_x3pi(x)
+            return tuple(results)
+
         bs = x[0].shape[0]  # batch size
         kpt = torch.cat([self.cv4[i](x[i]).view(bs, self.nk, -1) for i in range(self.nl)], -1)  # (bs, 17*3, h*w)
         x = self.detect(self, x)
@@ -136,6 +170,17 @@ class Pose(Detect):
             y[:, 0::ndim] = (y[:, 0::ndim] * 2.0 + (self.anchors[0] - 0.5)) * self.strides
             y[:, 1::ndim] = (y[:, 1::ndim] * 2.0 + (self.anchors[1] - 0.5)) * self.strides
             return y
+
+    def forward_pose_x3pi(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            kpt = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            results.append(cls)
+            results.append(dfl)
+            results.append(kpt)
+        return results
 
 
 class Classify(nn.Module):
