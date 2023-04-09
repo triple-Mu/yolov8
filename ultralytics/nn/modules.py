@@ -571,6 +571,9 @@ class Pose(Detect):
 
     def forward(self, x):
         """Perform forward pass through YOLO model and return predictions."""
+        if torch.onnx.is_in_onnx_export():
+            return self.forward_pose_ax620(x)
+        
         bs = x[0].shape[0]  # batch size
         kpt = torch.cat([self.cv4[i](x[i]).view(bs, self.nk, -1) for i in range(self.nl)], -1)  # (bs, 17*3, h*w)
         x = self.detect(self, x)
@@ -595,6 +598,15 @@ class Pose(Detect):
             y[:, 0::ndim] = (y[:, 0::ndim] * 2.0 + (self.anchors[0] - 0.5)) * self.strides
             y[:, 1::ndim] = (y[:, 1::ndim] * 2.0 + (self.anchors[1] - 0.5)) * self.strides
             return y
+
+    def forward_pose_ax620(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i])
+            cls = self.cv3[i](x[i])
+            kpt = self.cv4[i](x[i])
+            results.append(torch.cat([cls, dfl, kpt], 1))
+        return results
 
 
 class Classify(nn.Module):
