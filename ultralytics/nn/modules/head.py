@@ -62,6 +62,9 @@ class Detect(nn.Module):
 
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
+        if self.export or torch.onnx.is_in_onnx_export():
+            return self.forward_det_export(x)
+
         if self.end2end:
             return self.forward_end2end(x)
 
@@ -124,6 +127,15 @@ class Detect(nn.Module):
 
         return torch.cat((dbox, cls.sigmoid()), 1)
 
+    def forward_det_export(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = cls.sigmoid()
+            results.append(torch.cat((cls, dfl), -1))
+        return tuple(results)
+
     def bias_init(self):
         """Initialize Detect() biases, WARNING: requires stride availability."""
         m = self  # self.model[-1]  # Detect() module
@@ -182,6 +194,11 @@ class Segment(Detect):
     def forward(self, x):
         """Return model outputs and mask coefficients if training, otherwise return outputs and mask coefficients."""
         p = self.proto(x[0])  # mask protos
+        if self.export or torch.onnx.is_in_onnx_export():
+            results = self.forward_seg_export(x)
+            results.append(p)
+            return tuple(results)
+
         bs = p.shape[0]  # batch size
 
         mc = torch.cat([self.cv4[i](x[i]).view(bs, self.nm, -1) for i in range(self.nl)], 2)  # mask coefficients
@@ -189,6 +206,16 @@ class Segment(Detect):
         if self.training:
             return x, mc, p
         return (torch.cat([x, mc], 1), p) if self.export else (torch.cat([x[0], mc], 1), (x[1], mc, p))
+
+    def forward_seg_export(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            mcoef = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = cls.sigmoid()
+            results.append(torch.cat((cls, dfl, mcoef), -1))
+        return results
 
 
 class OBB(Detect):
@@ -204,6 +231,10 @@ class OBB(Detect):
 
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
+        if self.export or torch.onnx.is_in_onnx_export():
+            results = self.forward_obb_export(x)
+            return tuple(results)
+
         bs = x[0].shape[0]  # batch size
         angle = torch.cat([self.cv4[i](x[i]).view(bs, self.ne, -1) for i in range(self.nl)], 2)  # OBB theta logits
         # NOTE: set `angle` as an attribute so that `decode_bboxes` could use it.
@@ -220,6 +251,16 @@ class OBB(Detect):
         """Decode rotated bounding boxes."""
         return dist2rbox(bboxes, self.angle, anchors, dim=1)
 
+    def forward_obb_export(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            angle = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = cls.sigmoid()
+            results.append(torch.cat((cls, dfl, angle), -1))
+        return results
+
 
 class Pose(Detect):
     """YOLO Pose head for keypoints models."""
@@ -235,6 +276,10 @@ class Pose(Detect):
 
     def forward(self, x):
         """Perform forward pass through YOLO model and return predictions."""
+        if self.export or torch.onnx.is_in_onnx_export():
+            results = self.forward_pose_export(x)
+            return tuple(results)
+
         bs = x[0].shape[0]  # batch size
         kpt = torch.cat([self.cv4[i](x[i]).view(bs, self.nk, -1) for i in range(self.nl)], -1)  # (bs, 17*3, h*w)
         x = Detect.forward(self, x)
@@ -242,6 +287,16 @@ class Pose(Detect):
             return x, kpt
         pred_kpt = self.kpts_decode(bs, kpt)
         return torch.cat([x, pred_kpt], 1) if self.export else (torch.cat([x[0], pred_kpt], 1), (x[1], kpt))
+
+    def forward_pose_export(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i])
+            kpt = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = cls.sigmoid()
+            results.append(torch.cat((cls, dfl, kpt), -1))
+        return results
 
     def kpts_decode(self, bs, kpts):
         """Decodes keypoints."""
