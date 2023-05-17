@@ -440,6 +440,13 @@ def attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     """Loads a single model weights."""
     ckpt, weight = torch_safe_load(weight)  # load ckpt
     args = {**DEFAULT_CFG_DICT, **(ckpt.get('train_args', {}))}  # combine model and default args, preferring model args
+    if args.get('load_backbone') is None or args.get('load_backbone'):
+        ckpt['load_backbone'] = False
+        state_dict = ckpt['model'].state_dict()
+        for k, v in state_dict.items():
+            if int(k.split('.')[1]) > 11:
+                state_dict[k] = torch.randn(v.shape, device=v.device)
+        ckpt['model'].load_state_dict(state_dict)
     model = (ckpt.get('ema') or ckpt['model']).to(device).float()  # FP32 model
 
     # Model compatibility updates
