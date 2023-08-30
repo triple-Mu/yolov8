@@ -13,17 +13,19 @@ import requests
 import torch
 from tqdm import tqdm
 
-from ultralytics.utils import LOGGER, checks, clean_url, emojis, is_online, url2file
+from ultralytics.utils import LOGGER, TQDM_BAR_FORMAT, checks, clean_url, emojis, is_online, url2file
 
-GITHUB_ASSET_NAMES = [f'yolov8{k}{suffix}.pt' for k in 'nsmlx' for suffix in ('', '6', '-cls', '-seg', '-pose')] + \
-                     [f'yolov5{k}u.pt' for k in 'nsmlx'] + \
-                     [f'yolov3{k}u.pt' for k in ('', '-spp', '-tiny')] + \
-                     [f'yolo_nas_{k}.pt' for k in 'sml'] + \
-                     [f'sam_{k}.pt' for k in 'bl'] + \
-                     [f'FastSAM-{k}.pt' for k in 'sx'] + \
-                     [f'rtdetr-{k}.pt' for k in 'lx'] + \
-                     ['mobile_sam.pt']
-GITHUB_ASSET_STEMS = [Path(k).stem for k in GITHUB_ASSET_NAMES]
+# Define Ultralytics GitHub assets maintained at https://github.com/ultralytics/assets
+GITHUB_ASSETS_REPO = 'ultralytics/assets'
+GITHUB_ASSETS_NAMES = [f'yolov8{k}{suffix}.pt' for k in 'nsmlx' for suffix in ('', '6', '-cls', '-seg', '-pose')] + \
+                      [f'yolov5{k}u.pt' for k in 'nsmlx'] + \
+                      [f'yolov3{k}u.pt' for k in ('', '-spp', '-tiny')] + \
+                      [f'yolo_nas_{k}.pt' for k in 'sml'] + \
+                      [f'sam_{k}.pt' for k in 'bl'] + \
+                      [f'FastSAM-{k}.pt' for k in 'sx'] + \
+                      [f'rtdetr-{k}.pt' for k in 'lx'] + \
+                      ['mobile_sam.pt']
+GITHUB_ASSETS_STEMS = [Path(k).stem for k in GITHUB_ASSETS_NAMES]
 
 
 def is_url(url, check=True):
@@ -37,6 +39,33 @@ def is_url(url, check=True):
                 return response.getcode() == 200  # check if exists online
         return True
     return False
+
+
+def delete_dsstore(path, files_to_delete=('.DS_Store', '__MACOSX')):
+    """
+    Deletes all ".DS_store" files under a specified directory.
+
+    Args:
+        path (str, optional): The directory path where the ".DS_store" files should be deleted.
+        files_to_delete (tuple): The files to be deleted.
+
+    Example:
+        ```python
+        from ultralytics.utils.downloads import delete_dsstore
+
+        delete_dsstore('path/to/dir')
+        ```
+
+    Note:
+        ".DS_store" files are created by the Apple operating system and contain metadata about folders and files. They
+        are hidden system files and can cause issues when transferring files between different operating systems.
+    """
+    # Delete Apple .DS_store files
+    for file in files_to_delete:
+        matches = list(Path(path).rglob(file))
+        LOGGER.info(f'Deleting {file} files: {matches}')
+        for f in matches:
+            f.unlink()
 
 
 def zip_directory(directory, compress=True, exclude=('.DS_Store', '__MACOSX'), progress=True):
@@ -62,16 +91,21 @@ def zip_directory(directory, compress=True, exclude=('.DS_Store', '__MACOSX'), p
     """
     from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
+    delete_dsstore(directory)
     directory = Path(directory)
     if not directory.is_dir():
         raise FileNotFoundError(f"Directory '{directory}' does not exist.")
 
     # Unzip with progress bar
-    files_to_zip = [f for f in directory.rglob('*') if f.is_file() and not any(x in f.name for x in exclude)]
+    files_to_zip = [f for f in directory.rglob('*') if f.is_file() and all(x not in f.name for x in exclude)]
     zip_file = directory.with_suffix('.zip')
     compression = ZIP_DEFLATED if compress else ZIP_STORED
     with ZipFile(zip_file, 'w', compression) as f:
-        for file in tqdm(files_to_zip, desc=f'Zipping {directory} to {zip_file}...', unit='file', disable=not progress):
+        for file in tqdm(files_to_zip,
+                         desc=f'Zipping {directory} to {zip_file}...',
+                         unit='file',
+                         disable=not progress,
+                         bar_format=TQDM_BAR_FORMAT):
             f.write(file, file.relative_to(directory))
 
     return zip_file  # return path to zip file
@@ -117,18 +151,24 @@ def unzip_file(file, path=None, exclude=('.DS_Store', '__MACOSX'), exist_ok=Fals
         files = [f for f in zipObj.namelist() if all(x not in f for x in exclude)]
         top_level_dirs = {Path(f).parts[0] for f in files}
 
-        if len(top_level_dirs) > 1 or not files[0].endswith('/'):
-            path = Path(path) / Path(file).stem  # define new unzip directory
+        if len(top_level_dirs) > 1 or not files[0].endswith('/'):  # zip has multiple files at top level
+            path = extract_path = Path(path) / Path(file).stem  # i.e. ../datasets/coco8
+        else:  # zip has 1 top-level directory
+            extract_path = path  # i.e. ../datasets
+            path = Path(path) / list(top_level_dirs)[0]  # i.e. ../datasets/coco8
 
         # Check if destination directory already exists and contains files
-        extract_path = Path(path) / list(top_level_dirs)[0]
-        if extract_path.exists() and any(extract_path.iterdir()) and not exist_ok:
+        if path.exists() and any(path.iterdir()) and not exist_ok:
             # If it exists and is not empty, return the path without unzipping
             LOGGER.info(f'Skipping {file} unzip (already unzipped)')
             return path
 
-        for f in tqdm(files, desc=f'Unzipping {file} to {Path(path).resolve()}...', unit='file', disable=not progress):
-            zipObj.extract(f, path=path)
+        for f in tqdm(files,
+                      desc=f'Unzipping {file} to {Path(path).resolve()}...',
+                      unit='file',
+                      disable=not progress,
+                      bar_format=TQDM_BAR_FORMAT):
+            zipObj.extract(f, path=extract_path)
 
     return path  # return unzip dir
 
@@ -157,11 +197,9 @@ def check_disk_space(url='https://ultralytics.com/assets/coco128.zip', sf=1.5, h
                 f'Please free {data * sf - free:.1f} GB additional disk space and try again.')
         if hard:
             raise MemoryError(text)
-        else:
-            LOGGER.warning(text)
-            return False
+        LOGGER.warning(text)
+        return False
 
-            # Pass if error
     return True
 
 
@@ -186,21 +224,18 @@ def get_google_drive_file_info(link):
     """
     file_id = link.split('/d/')[1].split('/view')[0]
     drive_url = f'https://drive.google.com/uc?export=download&id={file_id}'
+    filename = None
 
     # Start session
-    filename = None
     with requests.Session() as session:
         response = session.get(drive_url, stream=True)
         if 'quota exceeded' in str(response.content.lower()):
             raise ConnectionError(
                 emojis(f'❌  Google Drive file download quota exceeded. '
                        f'Please try again later or download this file manually at {link}.'))
-        token = None
-        for key, value in response.cookies.items():
-            if key.startswith('download_warning'):
-                token = value
-        if token:
-            drive_url = f'https://drive.google.com/uc?export=download&confirm={token}&id={file_id}'
+        for k, v in response.cookies.items():
+            if k.startswith('download_warning'):
+                drive_url += f'&confirm={v}'  # v is token
         cd = response.headers.get('content-disposition')
         if cd:
             filename = re.findall('filename="(.+)"', cd)[0]
@@ -259,7 +294,6 @@ def safe_download(url,
                     if method == 'torch':
                         torch.hub.download_url_to_file(url, f, progress=progress)
                     else:
-                        from ultralytics.utils import TQDM_BAR_FORMAT
                         with request.urlopen(url) as response, tqdm(total=int(response.getheader('Content-Length', 0)),
                                                                     desc=desc,
                                                                     disable=not progress,
@@ -288,7 +322,7 @@ def safe_download(url,
 
         unzip_dir = dir or f.parent  # unzip to dir if provided else unzip in place
         if is_zipfile(f):
-            unzip_dir = unzip_file(file=f, path=unzip_dir)  # unzip
+            unzip_dir = unzip_file(file=f, path=unzip_dir, progress=progress)  # unzip
         elif f.suffix in ('.tar', '.gz'):
             LOGGER.info(f'Unzipping {f} to {unzip_dir.resolve()}...')
             subprocess.run(['tar', 'xf' if f.suffix == '.tar' else 'xfz', f, '--directory', unzip_dir], check=True)
@@ -303,8 +337,11 @@ def get_github_assets(repo='ultralytics/assets', version='latest', retry=False):
         version = f'tags/{version}'  # i.e. tags/v6.2
     url = f'https://api.github.com/repos/{repo}/releases/{version}'
     r = requests.get(url)  # github api
-    if r.status_code != 200 and retry:
+    if r.status_code != 200 and r.reason != 'rate limit exceeded' and retry:  # failed and not 403 rate limit exceeded
         r = requests.get(url)  # try again
+    if r.status_code != 200:
+        LOGGER.warning(f'⚠️ GitHub assets check failure for {url}: {r.status_code} {r.reason}')
+        return '', []
     data = r.json()
     return data['tag_name'], [x['name'] for x in data['assets']]  # tag, assets
 
@@ -331,24 +368,16 @@ def attempt_download_asset(file, repo='ultralytics/assets', release='v0.0.0'):
                 LOGGER.info(f'Found {clean_url(url)} locally at {file}')  # file already exists
             else:
                 safe_download(url=url, file=file, min_bytes=1E5)
-            return file
 
-        # GitHub assets
-        assets = GITHUB_ASSET_NAMES
-        try:
+        elif repo == GITHUB_ASSETS_REPO and name in GITHUB_ASSETS_NAMES:
+            safe_download(url=f'https://github.com/{repo}/releases/download/{release}/{name}', file=file, min_bytes=1E5)
+
+        else:
             tag, assets = get_github_assets(repo, release)
-        except Exception:
-            try:
+            if not assets:
                 tag, assets = get_github_assets(repo)  # latest release
-            except Exception:
-                try:
-                    tag = subprocess.check_output(['git', 'tag']).decode().split()[-1]
-                except Exception:
-                    tag = release
-
-        file.parent.mkdir(parents=True, exist_ok=True)  # make parent dir (if required)
-        if name in assets:
-            safe_download(url=f'https://github.com/{repo}/releases/download/{tag}/{name}', file=file, min_bytes=1E5)
+            if name in assets:
+                safe_download(url=f'https://github.com/{repo}/releases/download/{tag}/{name}', file=file, min_bytes=1E5)
 
         return str(file)
 

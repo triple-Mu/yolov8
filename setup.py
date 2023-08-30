@@ -21,7 +21,7 @@ def get_version():
 setup(
     name='ultralytics',  # name of pypi package
     version=get_version(),  # version of pypi package
-    python_requires='>=3.7',
+    python_requires='>=3.8',
     license='AGPL-3.0',
     description=('Ultralytics YOLOv8 for SOTA object detection, multi-object tracking, instance segmentation, '
                  'pose estimation and image classification.'),
@@ -47,7 +47,7 @@ setup(
             'mkdocs-material',
             'mkdocstrings[python]',
             'mkdocs-redirects',  # for 301 redirects
-            'mkdocs-ultralytics-plugin>=0.0.25',  # for meta descriptions and images, dates and authors
+            'mkdocs-ultralytics-plugin>=0.0.27',  # for meta descriptions and images, dates and authors
         ],
         'export': [
             'coremltools>=7.0.b1',

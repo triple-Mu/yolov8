@@ -20,9 +20,9 @@ import requests
 import torch
 from matplotlib import font_manager
 
-from ultralytics.utils import (AUTOINSTALL, LOGGER, ONLINE, ROOT, USER_CONFIG_DIR, ThreadingLocked, TryExcept,
-                               clean_url, colorstr, downloads, emojis, is_colab, is_docker, is_jupyter, is_kaggle,
-                               is_online, is_pip_package, url2file)
+from ultralytics.utils import (ASSETS, AUTOINSTALL, LINUX, LOGGER, ONLINE, ROOT, USER_CONFIG_DIR, ThreadingLocked,
+                               TryExcept, clean_url, colorstr, downloads, emojis, is_colab, is_docker, is_jupyter,
+                               is_kaggle, is_online, is_pip_package, url2file)
 
 
 def is_ascii(s) -> bool:
@@ -164,7 +164,6 @@ def check_latest_pypi_version(package_name='ultralytics'):
         response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=3)
         if response.status_code == 200:
             return response.json()['info']['version']
-    return None
 
 
 def check_pip_update_available():
@@ -215,7 +214,7 @@ def check_font(font='Arial.ttf'):
         return file
 
 
-def check_python(minimum: str = '3.7.0') -> bool:
+def check_python(minimum: str = '3.8.0') -> bool:
     """
     Check current python version against the required minimum version.
 
@@ -390,8 +389,9 @@ def check_yaml(file, suffix=('.yaml', '.yml'), hard=True):
 def check_imshow(warn=False):
     """Check if environment supports image displays."""
     try:
-        assert not any((is_colab(), is_kaggle(), is_docker()))
-        cv2.imshow('test', np.zeros((1, 1, 3)))
+        if LINUX:
+            assert 'DISPLAY' in os.environ and not is_docker() and not is_colab() and not is_kaggle()
+        cv2.imshow('test', np.zeros((8, 8, 3), dtype=np.uint8))  # show a small 8-pixel image
         cv2.waitKey(1)
         cv2.destroyAllWindows()
         cv2.waitKey(1)
@@ -437,11 +437,17 @@ def check_amp(model):
     Args:
         model (nn.Module): A YOLOv8 model instance.
 
+    Example:
+        ```python
+        from ultralytics import YOLO
+        from ultralytics.utils.checks import check_amp
+
+        model = YOLO('yolov8n.pt').model.cuda()
+        check_amp(model)
+        ```
+
     Returns:
         (bool): Returns True if the AMP functionality works correctly with YOLOv8 model, else False.
-
-    Raises:
-        AssertionError: If the AMP checks fail, indicating anomalies with the AMP functionality on the system.
     """
     device = next(model.parameters()).device  # get model device
     if device.type in ('cpu', 'mps'):
@@ -455,8 +461,7 @@ def check_amp(model):
         del m
         return a.shape == b.shape and torch.allclose(a, b.float(), atol=0.5)  # close to 0.5 absolute tolerance
 
-    f = ROOT / 'assets/bus.jpg'  # image to check
-    im = f if f.exists() else 'https://ultralytics.com/images/bus.jpg' if ONLINE else np.ones((640, 640, 3))
+    im = ASSETS / 'bus.jpg'  # image to check
     prefix = colorstr('AMP: ')
     LOGGER.info(f'{prefix}running Automatic Mixed Precision (AMP) checks with YOLOv8n...')
     warning_msg = "Setting 'amp=True'. If you experience zero-mAP or NaN losses you can disable AMP with amp=False."
@@ -479,11 +484,9 @@ def check_amp(model):
 
 def git_describe(path=ROOT):  # path must be a directory
     """Return human-readable git description, i.e. v5.0-5-g3e25f1e https://git-scm.com/docs/git-describe."""
-    try:
-        assert (Path(path) / '.git').is_dir()
+    with contextlib.suppress(Exception):
         return subprocess.check_output(f'git -C {path} describe --tags --long --always', shell=True).decode()[:-1]
-    except AssertionError:
-        return ''
+    return ''
 
 
 def print_args(args: Optional[dict] = None, show_file=True, show_func=False):
@@ -504,3 +507,32 @@ def print_args(args: Optional[dict] = None, show_file=True, show_func=False):
         file = Path(file).stem
     s = (f'{file}: ' if show_file else '') + (f'{func}: ' if show_func else '')
     LOGGER.info(colorstr(s) + ', '.join(f'{k}={strip_auth(v)}' for k, v in args.items()))
+
+
+def cuda_device_count() -> int:
+    """Get the number of NVIDIA GPUs available in the environment.
+
+    Returns:
+        (int): The number of NVIDIA GPUs available.
+    """
+    try:
+        # Run the nvidia-smi command and capture its output
+        output = subprocess.check_output(['nvidia-smi', '--query-gpu=count', '--format=csv,noheader,nounits'],
+                                         encoding='utf-8')
+
+        # Take the first line and strip any leading/trailing white space
+        first_line = output.strip().split('\n')[0]
+
+        return int(first_line)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        # If the command fails, nvidia-smi is not found, or output is not an integer, assume no GPUs are available
+        return 0
+
+
+def cuda_is_available() -> bool:
+    """Check if CUDA is available in the environment.
+
+    Returns:
+        (bool): True if one or more NVIDIA GPUs are available, False otherwise.
+    """
+    return cuda_device_count() > 0

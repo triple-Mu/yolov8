@@ -55,7 +55,7 @@ You can use YOLOv3 for object detection tasks using the Ultralytics repository. 
 
     This example provides simple inference code for YOLOv3. For more options including handling inference results see [Predict](../modes/predict.md) mode. For using YOLOv3 with additional modes see [Train](../modes/train.md), [Val](../modes/val.md) and [Export](../modes/export.md).
 
-   === "Python"
+    === "Python"
 
         PyTorch pretrained `*.pt` models as well as configuration `*.yaml` files can be passed to the `YOLO()` class to create a model instance in python:
 
@@ -69,7 +69,7 @@ You can use YOLOv3 for object detection tasks using the Ultralytics repository. 
         model.info()
 
         # Train the model on the COCO8 example dataset for 100 epochs
-        results model.train(data='coco8.yaml', epochs=100, imgsz=640)
+        results = model.train(data='coco8.yaml', epochs=100, imgsz=640)
 
         # Run inference with the YOLOv3n model on the 'bus.jpg' image
         results = model('path/to/bus.jpg')

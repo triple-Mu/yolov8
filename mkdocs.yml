@@ -207,15 +207,20 @@ nav:
           - Imagenette: datasets/classify/imagenette.md
           - Imagewoof: datasets/classify/imagewoof.md
           - MNIST: datasets/classify/mnist.md
+      - Oriented Bounding Boxes (OBB):
+          - datasets/obb/index.md
+          - DOTAv2: datasets/obb/dota-v2.md
       - Multi-Object Tracking:
           - datasets/track/index.md
   - Guides:
       - guides/index.md
       - K-Fold Cross Validation: guides/kfold-cross-validation.md
+      - Hyperparameter Tuning: guides/hyperparameter-tuning.md
   - Integrations:
       - integrations/index.md
       - OpenVINO: integrations/openvino.md
       - Ray Tune: integrations/ray-tune.md
+      - Roboflow: integrations/roboflow.md
   - Usage:
       - CLI: usage/cli.md
       - Python: usage/python.md
@@ -276,6 +281,7 @@ nav:
           - predictor: reference/engine/predictor.md
           - results: reference/engine/results.md
           - trainer: reference/engine/trainer.md
+          - tuner: reference/engine/tuner.md
           - validator: reference/engine/validator.md
       - hub:
           - __init__: reference/hub/__init__.md
@@ -398,6 +404,7 @@ plugins:
       handlers:
         python:
           options:
+            docstring_style: google
             show_root_heading: true
             show_source: true
   - ultralytics:
