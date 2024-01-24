@@ -13,7 +13,7 @@ from .conv import Conv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init
 
-__all__ = 'Detect', 'Segment', 'Pose', 'Classify', 'RTDETRDecoder'
+__all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder"
 
 
 class Detect(nn.Module):
@@ -46,7 +46,6 @@ class Detect(nn.Module):
         if self.export or torch.onnx.is_in_onnx_export():
             return self.forward_det_export(x)
 
-        shape = x[0].shape  # BCHW
         for i in range(self.nl):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
         if self.training:  # Training path
