@@ -156,6 +156,11 @@ class OBB(Detect):
 
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
+
+        if self.export or torch.onnx.is_in_onnx_export():
+            results = self.forward_obb_export(x)
+            return tuple(results)
+
         bs = x[0].shape[0]  # batch size
         angle = torch.cat([self.cv4[i](x[i]).view(bs, self.ne, -1) for i in range(self.nl)], 2)  # OBB theta logits
         # NOTE: set `angle` as an attribute so that `decode_bboxes` could use it.
@@ -171,6 +176,17 @@ class OBB(Detect):
     def decode_bboxes(self, bboxes):
         """Decode rotated bounding boxes."""
         return dist2rbox(self.dfl(bboxes), self.angle, self.anchors.unsqueeze(0), dim=1) * self.strides
+
+    def forward_obb_export(self, x):
+        results = []
+        for i in range(self.nl):
+            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            angle = self.cv4[i](x[i])
+            results.append(cls)
+            results.append(dfl)
+            results.append(angle)
+        return results
 
 
 class Pose(Detect):
@@ -205,7 +221,7 @@ class Pose(Detect):
         results = []
         for i in range(self.nl):
             dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            cls = self.cv3[i](x[i])
             kpt = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
             results.append(cls)
             results.append(dfl)
