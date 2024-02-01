@@ -82,8 +82,8 @@ class Detect(nn.Module):
         for i in range(self.nl):
             dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
             cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            results.append(cls)
-            results.append(dfl)
+            cls = torch.sigmoid(cls)
+            results.append(torch.cat([cls, dfl], dim=-1))
         return tuple(results)
 
     def bias_init(self):
@@ -136,9 +136,8 @@ class Segment(Detect):
             dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
             cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
             mcoef = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            results.append(cls)
-            results.append(dfl)
-            results.append(mcoef)
+            cls = torch.sigmoid(cls)
+            results.append(torch.cat([cls, dfl, mcoef], dim=-1))
         return results
 
 
@@ -183,9 +182,9 @@ class OBB(Detect):
             dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
             cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
             angle = self.cv4[i](x[i])
-            results.append(cls)
-            results.append(dfl)
-            results.append(angle)
+            cls = torch.sigmoid(cls)
+            angle = torch.sigmoid(angle)
+            results.append(torch.cat([cls, dfl, angle], dim=-1))
         return results
 
 
