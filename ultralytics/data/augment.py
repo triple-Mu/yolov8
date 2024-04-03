@@ -1096,6 +1096,9 @@ def v8_transforms(dataset, imgsz, hyp, stretch=False):
     pre_transform = Compose(
         [
             Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic),
+            CacheCopyPaste(p=hyp.copy_paste, weights=hyp.copy_paste_weights, max_cache=hyp.max_cache)
+            if hyp.cache_copy_paste
+            else
             CopyPaste(p=hyp.copy_paste),
             RandomPerspective(
                 degrees=hyp.degrees,
@@ -1373,3 +1376,62 @@ class ToTensor:
         im = im.half() if self.half else im.float()  # uint8 to fp16/32
         im /= 255.0  # 0-255 to 0.0-1.0
         return im
+
+
+class CacheCopyPaste:
+    def __init__(self, p=0.5, weights=None, max_cache=128) -> None:
+        self.p = p
+        self.weights = weights
+        self.max_cache = max_cache
+        self.num_paste = 20
+        self.cache = []
+
+    def __call__(self, labels):
+        im = labels["img"]
+        cls = labels["cls"]
+        h, w = im.shape[:2]
+        instances = labels.pop("instances")
+        instances.convert_bbox(format="xyxy")
+        instances.denormalize(w, h)
+        if self.p and len(instances.segments):
+            n = len(instances)
+            for i in range(n):
+                if len(self.cache) < self.max_cache:
+                    bbox = instances.bboxes[i]
+                    seg = instances.segments[i] - bbox[:2]
+                    x1, y1, x2, y2 = bbox.round().astype(np.int32)
+                    crop = im[y1:y2, x1:x2]
+                    cid = int(cls[i].item())
+                    if random.choices(range(len(self.weights)), weights=self.weights, k=1)[0] == cid:
+                        self.cache.append((crop, cid, seg))
+                else:
+                    random.shuffle(self.cache)
+                    self.cache = self.cache[:self.max_cache]
+
+            num_paste = max(5, self.num_paste - n)
+            if len(self.cache) > num_paste:
+                n_paste = random.randint(0, num_paste)
+                if n_paste > 0:
+                    selects = random.choices(self.cache, k=n_paste)
+                    for select in selects:
+                        crop, cid, seg = select
+                        b_h, b_w = crop.shape[:2]
+                        max_h, max_w = im.shape[:2]
+                        start_x = random.randint(0, max_w - b_w - 1)
+                        start_y = random.randint(0, max_h - b_h - 1)
+                        cv2.addWeighted(
+                            im[start_y: start_y + b_h, start_x: start_x + b_w], 0.5,
+                            crop, 0.8,
+                            0,
+                            im[start_y: start_y + b_h, start_x: start_x + b_w]
+                        )
+                        cls = np.append(cls, np.array([[cid]], dtype=np.int32), 0)
+                        bbox = np.array([start_x, start_y, start_x + b_w, start_y + b_h], dtype=np.float32)
+                        seg = seg + np.array([start_x, start_y], dtype=np.float32)
+                        inst = Instances(bbox, seg[np.newaxis], bbox_format='xyxy', normalized=False)
+                        instances = Instances.concatenate([instances, inst], axis=0)
+
+        labels["img"] = im
+        labels["cls"] = cls
+        labels["instances"] = instances
+        return labels
