@@ -5,8 +5,8 @@
 # Material theme, define the navigation structure, and enable various plugins.
 
 # Site metadata
-site_name: Ultralytics YOLOv8 Docs
-site_description: Explore Ultralytics YOLOv8, a cutting-edge real-time object detection and image segmentation model for various applications and hardware platforms.
+site_name: Ultralytics YOLO Docs
+site_description: Explore Ultralytics YOLO, a cutting-edge real-time object detection and image segmentation model for various applications and hardware platforms.
 site_url: https://docs.ultralytics.com
 site_author: Ultralytics
 repo_url: https://github.com/ultralytics/ultralytics
@@ -171,6 +171,8 @@ nav:
           - 🇫🇷&nbsp Français: https://docs.ultralytics.com/fr/
           - 🇪🇸&nbsp Español: https://docs.ultralytics.com/es/
           - 🇵🇹&nbsp Português: https://docs.ultralytics.com/pt/
+          - 🇹🇷&nbsp Türkçe: https://docs.ultralytics.com/tr/
+          - 🇻🇳&nbsp Tiếng Việt: https://docs.ultralytics.com/vi/
           - 🇮🇳&nbsp हिन्दी: https://docs.ultralytics.com/hi/
           - 🇸🇦&nbsp العربية: https://docs.ultralytics.com/ar/
   - Quickstart:
@@ -499,6 +501,7 @@ nav:
           - tasks: reference/nn/tasks.md
       - solutions:
           - ai_gym: reference/solutions/ai_gym.md
+          - analytics: reference/solutions/analytics.md
           - distance_calculation: reference/solutions/distance_calculation.md
           - heatmap: reference/solutions/heatmap.md
           - object_counter: reference/solutions/object_counter.md

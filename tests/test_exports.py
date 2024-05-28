@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests import MODEL, SOURCE
 from ultralytics import YOLO
 from ultralytics.cfg import TASK2DATA, TASK2MODEL, TASKS
 from ultralytics.utils import (
@@ -14,11 +15,9 @@ from ultralytics.utils import (
     LINUX,
     MACOS,
     WINDOWS,
-    Retry,
     checks,
 )
 from ultralytics.utils.torch_utils import TORCH_1_9, TORCH_1_13
-from tests import MODEL, SOURCE
 
 
 def test_export_torchscript():
@@ -69,8 +68,7 @@ def test_export_openvino_matrix(task, dynamic, int8, half, batch):
         file = Path(file)
         file = file.rename(file.with_stem(f"{file.stem}-{uuid.uuid4()}"))
     YOLO(file)([SOURCE] * batch, imgsz=64 if dynamic else 32)  # exported model inference
-    with Retry(times=3, delay=1):  # retry in case of potential lingering multi-threaded file usage errors
-        shutil.rmtree(file)
+    shutil.rmtree(file, ignore_errors=True)  # retry in case of potential lingering multi-threaded file usage errors
 
 
 @pytest.mark.slow
