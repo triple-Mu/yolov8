@@ -62,7 +62,7 @@ class Detect(nn.Module):
 
     def forward(self, x):
         """Concatenates and returns predicted bounding boxes and class probabilities."""
-        if self.export or torch.onnx.is_in_onnx_export():
+        if not self.end2end and (self.export or torch.onnx.is_in_onnx_export()):
             return self.forward_det_export(x)
 
         if self.end2end:
