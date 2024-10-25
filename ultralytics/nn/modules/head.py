@@ -136,10 +136,10 @@ class Detect(nn.Module):
     def forward_det_export(self, x):
         results = []
         for i in range(self.nl):
-            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = cls.sigmoid()
-            results.append(torch.cat((cls, dfl), -1))
+            dfl = self.cv2[i](x[i])
+            cls = self.cv3[i](x[i])
+            merge = torch.cat((cls, dfl), 1)
+            results.append(merge.permute(0, 2, 3, 1).contiguous())
         return tuple(results)
 
     def bias_init(self):
