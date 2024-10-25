@@ -216,11 +216,11 @@ class Segment(Detect):
     def forward_seg_export(self, x):
         results = []
         for i in range(self.nl):
-            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            mcoef = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = cls.sigmoid()
-            results.append(torch.cat((cls, dfl, mcoef), -1))
+            dfl = self.cv2[i](x[i])
+            cls = self.cv3[i](x[i])
+            mcoef = self.cv4[i](x[i])
+            merge = torch.cat((cls, dfl, mcoef), 1)
+            results.append(merge.permute(0, 2, 3, 1).contiguous())
         return results
 
 
@@ -260,11 +260,11 @@ class OBB(Detect):
     def forward_obb_export(self, x):
         results = []
         for i in range(self.nl):
-            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = self.cv3[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            angle = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = cls.sigmoid()
-            results.append(torch.cat((cls, dfl, angle), -1))
+            dfl = self.cv2[i](x[i])
+            cls = self.cv3[i](x[i])
+            angle = self.cv4[i](x[i])
+            merge = torch.cat((cls, dfl, angle), 1)
+            results.append(merge.permute(0, 2, 3, 1).contiguous())
         return results
 
 
@@ -297,11 +297,11 @@ class Pose(Detect):
     def forward_pose_export(self, x):
         results = []
         for i in range(self.nl):
-            dfl = self.cv2[i](x[i]).permute(0, 2, 3, 1).contiguous()
+            dfl = self.cv2[i](x[i])
             cls = self.cv3[i](x[i])
-            kpt = self.cv4[i](x[i]).permute(0, 2, 3, 1).contiguous()
-            cls = cls.sigmoid()
-            results.append(torch.cat((cls, dfl, kpt), -1))
+            kpt = self.cv4[i](x[i])
+            merge = torch.cat((cls, dfl, kpt), 1)
+            results.append(merge.permute(0, 2, 3, 1).contiguous())
         return results
 
     def kpts_decode(self, bs, kpts):
