@@ -69,8 +69,9 @@ theme:
     - content.tabs.link # all code tabs change simultaneously
 
 # Customization
-copyright: <a href="https://ultralytics.com" target="_blank">© 2024 Ultralytics Inc.</a> All rights reserved.
+copyright: <a href="https://www.ultralytics.com/" target="_blank">© 2024 Ultralytics Inc.</a> All rights reserved.
 extra: # version:
+  homepage: https://www.ultralytics.com/
   #   provider: mike  #  version drop-down menu
   robots: robots.txt
   analytics:
@@ -90,7 +91,7 @@ extra: # version:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/ultralytics/
     - icon: fontawesome/brands/discord
-      link: https://ultralytics.com/discord
+      link: https://discord.com/invite/ultralytics
     - icon: fontawesome/brands/reddit
       link: https://reddit.com/r/ultralytics
 
@@ -326,7 +327,8 @@ nav:
       - Distance Calculation: guides/distance-calculation.md
       - Queue Management: guides/queue-management.md
       - Parking Management: guides/parking-management.md
-      - Live Inference 🚀 NEW: guides/streamlit-live-inference.md
+      - Live Inference: guides/streamlit-live-inference.md
+      - Track Objects in Zone 🚀 NEW: guides/trackzone.md
   - Guides:
       - guides/index.md
       - YOLO Common Issues: guides/yolo-common-issues.md
@@ -573,6 +575,7 @@ nav:
           - speed_estimation: reference/solutions/speed_estimation.md
           - streamlit_inference: reference/solutions/streamlit_inference.md
           - region_counter: reference/solutions/region_counter.md
+          - trackzone: reference/solutions/trackzone.md
       - trackers:
           - basetrack: reference/trackers/basetrack.md
           - bot_sort: reference/trackers/bot_sort.md
